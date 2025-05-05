@@ -19,7 +19,6 @@ import math # for entropy calculation
 import string # for ascii check
 from collections import Counter # for counting characters
 
-
 # Function to calculate the SHA-256 hash of a file
 def calculate_file_hash(file_path):
     sha256 = hashlib.sha256() # create a new sha256 hash object
@@ -36,11 +35,9 @@ def calculate_entropy(data):
     total = len(data) # total number of bytes
     return -sum((count / total) * math.log2(count / total) for count in counter.values()) # calculate entropy
 
-
 # Function to check if a string is ASCII printable
 def is_ascii_printable(text):
     return all(c in string.printable for c in text) # check if all characters are printable
-
 
 def is_suspicious(file_path):
     try:
@@ -59,6 +56,11 @@ def is_suspicious(file_path):
         # Check if the file is suspicious based on entropy and ASCII check
         if not ascii_check or entropy > 7.5:
             return True
+        ## Detect suspicious "readable" encryption like base64
+        #if ascii_check and 4.5 < entropy < 6.5:
+            #if all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r" for c in text):
+               # print("[WARN] Base64-like content detected — suspicious encoding")
+                #return True
 
     # Handle any exceptions that occur during file reading or analysis
     except Exception as e:
@@ -71,7 +73,6 @@ def is_suspicious(file_path):
 if __name__ == "__main__":
     folder_path = "example" # directory to scan for .txt files
     baseline_file = "baseline.csv" # baseline file to store hashes
-
 
     # Create baseline if not exists
     if not os.path.exists(baseline_file):
