@@ -56,11 +56,6 @@ def is_suspicious(file_path):
         # Check if the file is suspicious based on entropy and ASCII check
         if not ascii_check or entropy > 7.5:
             return True
-        ## Detect suspicious "readable" encryption like base64
-        #if ascii_check and 4.5 < entropy < 6.5:
-            #if all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r" for c in text):
-               # print("[WARN] Base64-like content detected — suspicious encoding")
-                #return True
 
     # Handle any exceptions that occur during file reading or analysis
     except Exception as e:
