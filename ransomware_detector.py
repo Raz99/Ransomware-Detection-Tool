@@ -53,9 +53,6 @@ import math
 import hashlib
 import string
 import re
-import base64
-import quopri
-import urllib.parse
 from collections import defaultdict, deque
 from sortedcontainers import SortedDict
 from watchdog.observers import Observer
