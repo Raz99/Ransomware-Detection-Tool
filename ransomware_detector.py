@@ -43,7 +43,7 @@ Summary:
 --------
 - 🎯 Designed for low-overhead, efficient ransomware detection
 - 🧠 Memory: O(n)
-- ⏱️ Runtime: O(log n) per modified file
+- ⏱️ Runtime: O(log(n)) per modified file
 - 📀 I/O: event-triggered, minimal (~4KB per change)
 """
 
