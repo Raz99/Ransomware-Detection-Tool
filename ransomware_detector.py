@@ -171,7 +171,8 @@ def create_honeypot_files(base_dir, count):
         path = os.path.join(base_dir, f"__HONEY__{i}.txt")
         try:
             with open(path, 'w') as f:
-                f.write("Project Plan - Confidential\n\nTasks:\n- Finalize budget proposal\n- Schedule design review\n- Contact suppliers\n- Prepare draft presentation\n\nDO NOT DELETE OR MODIFY")
+                f.write("Project Plan - Confidential\n\nTasks:\n- Finalize budget proposal\n- Schedule design review"
+                        "\n- Contact suppliers\n- Prepare draft presentation\n\nDO NOT DELETE OR MODIFY")
             print(f"[INFO] Honeypot created at: {path} (overwritten if existed)")
             HONEYPOT_FILES.add(os.path.basename(path))
         except Exception as e:
