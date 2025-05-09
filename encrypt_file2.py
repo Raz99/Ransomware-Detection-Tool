@@ -14,4 +14,4 @@ def xor_encrypt_file(file_path, key):
 
 if __name__ == "__main__":
     key = os.urandom(8)
-    xor_encrypt_file("example/file2.txt", key)
+    xor_encrypt_file("monitored_dir/file2.txt", key)

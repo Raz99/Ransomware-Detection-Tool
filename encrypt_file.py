@@ -39,7 +39,7 @@ def read_file(file_path):
 encryption_key = os.urandom(32)  # דוגמה ליצירת מפתח בגודל 256 ביט (32 בתים)
 
 # דוגמה לשימוש
-file_path = "example/file1.txt"  # שם הקובץ
+file_path = "monitored_dir/file1.txt"  # שם הקובץ
 content_to_encrypt = read_file(file_path)  # תוכן להצפנה
 add_encrypted_content_to_file(file_path, content_to_encrypt, encryption_key)
 print(f"encryption_key: {encryption_key}")

@@ -10,4 +10,4 @@ def base64_encode_file(file_path):
     print(f"[BASE64] Encoded {file_path}")
 
 if __name__ == "__main__":
-    base64_encode_file("example/file3.txt")
+    base64_encode_file("monitored_dir/file3.txt")
