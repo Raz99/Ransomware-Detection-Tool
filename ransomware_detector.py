@@ -113,22 +113,6 @@ def is_encoded(data, pattern, decoder):
     except:
         return False
 
-# def detect_encoding(data):
-#     flags = []
-#     if is_encoded(data, r'[A-Za-z0-9+/=]{16,}', base64.b64decode):
-#         flags.append('Base64')
-#     if is_encoded(data, r'[0-9a-fA-F]{16,}', bytes.fromhex):
-#         flags.append('Hex')
-#     if is_encoded(data, r'[A-Z2-7=]{16,}', base64.b32decode):
-#         flags.append('Base32')
-#     if is_encoded(data, r'[!-u]{16,}', base64.b85decode):
-#         flags.append('Base85')
-#     if is_encoded(data, r'(=[0-9A-F]{2})+', lambda x: quopri.decodestring(x)):
-#         flags.append('Quoted-Printable')
-#     if is_encoded(data, r'%[0-9A-Fa-f]{2}', lambda x: urllib.parse.unquote_to_bytes(x.decode())):
-#         flags.append('URL')
-#     return flags
-
 def detect_encoding(data):
     def match_ratio(text, pattern):
         matches = re.findall(pattern, text)
