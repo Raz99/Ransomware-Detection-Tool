@@ -313,7 +313,7 @@ def main():
             return
 
     create_honeypot_files(MONITORED_DIR, HONEY_COUNT)
-    print("[INFO] Honeypots created successfully. Monitoring has started.")
+    print("[INFO] Monitoring has started, press CTRL+C to stop.")
     event_handler = RansomwareEventHandler()
     observer = Observer()
     observer.schedule(event_handler, path=MONITORED_DIR, recursive=True)
