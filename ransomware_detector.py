@@ -15,7 +15,7 @@ Ransomware Detection Tool - Resource Efficiency Analysis
 2. Runtime Efficiency (Time Complexity):
 ----------------------------------------
 - ✅ O(1) per event for filesystem change detection (Watchdog).
-- ✅ O(log n) for change analysis, where n is file size:
+- ✅ O(log(n)) for change analysis, where n is file size:
     - Only small prefix of file (~4KB) is scanned
     - Windowed entropy is precomputed (SortedDict), updated incrementally
     - ASCII ratio and fuzzy similarity run on small window only
