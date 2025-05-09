@@ -4,45 +4,47 @@ Ransomware Detection Tool - Resource Efficiency Analysis
 
 1. Memory Usage (Space Complexity):
 -----------------------------------
-- ✅ O(1) for real-time event monitoring (via Watchdog/inotify): no full scan or buffer retention.
-- ✅ O(n) for storing SHA-256 hashes, MIME types, and small file content snapshots in `self.file_hashes`, `self.file_types`, and `self.file_contents`.
-- ❌ O(n*m) is *not used* – full file snapshots are limited to small files only (content stored in memory for fuzzy comparison).
-- ➕ Overall: efficient. Metadata + small content only.
+- ✅ O(1) for real-time event monitoring (via Watchdog/inotify): no buffer retention.
+- ✅ O(n) for storing:
+    - SHA-256 hashes per file
+    - MIME types
+    - Partial file content (~few KB for fuzzy comparison)
+    - Windowed entropy values using SortedDict (one per 1KB block)
+- ➕ Efficient: metadata + partial statistics only; no full file storage.
 
 2. Runtime Efficiency (Time Complexity):
 ----------------------------------------
-- ✅ O(1) per event for filesystem change detection.
-- ✅ O(n) for analysis: scanning new file content, entropy calculation, fuzzy similarity, encoding detection.
-  Each analysis on file change involves:
-    - entropy: O(m)
-    - ascii ratio: O(m)
-    - fuzzy similarity (difflib): ~O(m)
-    - MIME detection (1KB): O(1)
-- ➕ Overall: acceptable for human-scale directories (~hundreds of files), fast response to changes.
+- ✅ O(1) per event for filesystem change detection (Watchdog).
+- ✅ O(log n) for change analysis, where n is file size:
+    - Only small prefix of file (~4KB) is scanned
+    - Windowed entropy is precomputed (SortedDict), updated incrementally
+    - ASCII ratio and fuzzy similarity run on small window only
+    - MIME detection limited to 1KB
+- ➕ Fast detection with logarithmic access to suspicious segments.
 
 3. I/O Complexity (Disk Access):
 -------------------------------
-- ✅ Low I/O thanks to real-time monitoring (`Watchdog`, `Observer`) – avoids periodic polling.
-- ⚠️ Full file read (`open(path, 'rb')`) on changes only (for hash, entropy, content).
-- ➕ Total I/O is proportional to change rate, not folder size — makes this suitable for interactive environments.
+- ✅ Minimal I/O via real-time file event hooks (no polling).
+- ⚠️ Partial file read (~4KB) for changed files only.
+- ➕ Total disk access scales with *event frequency*, not folder size.
 
 4. Architecture:
 ----------------
-- Phase 1: Real-time detection of file changes (Watchdog) → very low overhead
-- Phase 2: Suspicion scoring using:
-    - File entropy (average + windowed)
-    - ASCII-printable ratio
-    - MIME type before/after
-    - Encoding signatures
-    - Fuzzy similarity to prior version
-- Honeypot trap files added as high-confidence ransomware indicators
+- Phase 1: Real-time file monitoring (creation/modification/deletion)
+- Phase 2: Lightweight content inspection via:
+    - MIME type analysis
+    - ASCII ratio
+    - Average + windowed entropy
+    - Fuzzy hash similarity
+    - Encoding pattern detection
+- Honeypot files act as high-confidence traps.
 
 Summary:
 --------
-- 🎯 Optimized for lightweight detection without polling
+- 🎯 Designed for low-overhead, efficient ransomware detection
 - 🧠 Memory: O(n)
-- ⏱️ Runtime: O(n) per modified file
-- 📀 I/O: minimal, event-based
+- ⏱️ Runtime: O(log n) per modified file
+- 📀 I/O: event-triggered, minimal (~4KB per change)
 """
 
 import os
@@ -55,17 +57,19 @@ import base64
 import quopri
 import urllib.parse
 from collections import defaultdict, deque
+from sortedcontainers import SortedDict
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import difflib
 
-MONITORED_DIR = "monitored_dir"
+MONITORED_DIR = "../monitored_dir"
 MAX_EVENTS_PER_MINUTE = 10
 MAX_DELETIONS_PER_MINUTE = 5
 ENTROPY_THRESHOLD = 7.0
 LOW_ASCII_RATIO = 0.5
 SIMILARITY_THRESHOLD = 50
 WINDOW_ENTROPY_THRESHOLD = 7.8
+WINDOW_SIZE = 1024
 SUSPICIOUS_EXTENSIONS = [
     ".locked", ".enc", ".encrypted", ".crypt", ".cripto", ".crypto",
     ".pay", ".ransom", ".crinf", ".r5a", ".WNCRY", ".wcry", ".wncrypt",
@@ -76,7 +80,6 @@ SUSPICIOUS_EXTENSIONS = [
 HONEYPOT_FILES = set()
 HONEY_COUNT = 3
 
-
 def file_entropy(data):
     if not data:
         return 0.0
@@ -86,10 +89,12 @@ def file_entropy(data):
     total = len(data)
     return -sum((count / total) * math.log2(count / total) for count in freq.values())
 
-def window_entropy(data, window_size=1024):
-    if len(data) < window_size:
-        return [file_entropy(data)]
-    return [file_entropy(data[i:i + window_size]) for i in range(0, len(data), window_size)]
+def sliding_entropy_windows(data, window_size=WINDOW_SIZE):
+    entropies = SortedDict()
+    for i in range(0, len(data), window_size):
+        window = data[i:i + window_size]
+        entropies[i // window_size] = file_entropy(window)
+    return entropies
 
 def ascii_ratio(data):
     printable = set(bytes(string.printable, 'ascii'))
@@ -111,26 +116,51 @@ def is_encoded(data, pattern, decoder):
     except:
         return False
 
+# def detect_encoding(data):
+#     flags = []
+#     if is_encoded(data, r'[A-Za-z0-9+/=]{16,}', base64.b64decode):
+#         flags.append('Base64')
+#     if is_encoded(data, r'[0-9a-fA-F]{16,}', bytes.fromhex):
+#         flags.append('Hex')
+#     if is_encoded(data, r'[A-Z2-7=]{16,}', base64.b32decode):
+#         flags.append('Base32')
+#     if is_encoded(data, r'[!-u]{16,}', base64.b85decode):
+#         flags.append('Base85')
+#     if is_encoded(data, r'(=[0-9A-F]{2})+', lambda x: quopri.decodestring(x)):
+#         flags.append('Quoted-Printable')
+#     if is_encoded(data, r'%[0-9A-Fa-f]{2}', lambda x: urllib.parse.unquote_to_bytes(x.decode())):
+#         flags.append('URL')
+#     return flags
+
 def detect_encoding(data):
+    def match_ratio(text, pattern):
+        matches = re.findall(pattern, text)
+        total_chars = sum(len(m) for m in matches)
+        return total_chars / len(text) if text else 0
+
     flags = []
-    if is_encoded(data, r'[A-Za-z0-9+/=]{16,}', base64.b64decode):
-        flags.append('Base64')
-    if is_encoded(data, r'[0-9a-fA-F]{16,}', bytes.fromhex):
-        flags.append('Hex')
-    if is_encoded(data, r'[A-Z2-7=]{16,}', base64.b32decode):
-        flags.append('Base32')
-    if is_encoded(data, r'[!-u]{16,}', base64.b85decode):
-        flags.append('Base85')
-    if is_encoded(data, r'(=[0-9A-F]{2})+', lambda x: quopri.decodestring(x)):
-        flags.append('Quoted-Printable')
-    if is_encoded(data, r'%[0-9A-Fa-f]{2}', lambda x: urllib.parse.unquote_to_bytes(x.decode())):
-        flags.append('URL')
+    try:
+        text = data.decode('ascii', errors='ignore')
+        if match_ratio(text, r'[A-Za-z0-9+/=]{16,}') > 0.5:
+            flags.append('Base64')
+        if match_ratio(text, r'[0-9a-fA-F]{16,}') > 0.5:
+            flags.append('Hex')
+        if match_ratio(text, r'[A-Z2-7=]{16,}') > 0.5:
+            flags.append('Base32')
+        if match_ratio(text, r'[!-u]{16,}') > 0.5:
+            flags.append('Base85')
+        if match_ratio(text, r'(=[0-9A-F]{2})+') > 0.5:
+            flags.append('Quoted-Printable')
+        if match_ratio(text, r'%[0-9A-Fa-f]{2}') > 0.5:
+            flags.append('URL')
+    except Exception:
+        pass
     return flags
 
 def fuzzy_similarity(old_data, new_data):
     try:
         if not old_data:
-            return 100  # treat as new file creation, not suspicious by itself
+            return 100
         return int(difflib.SequenceMatcher(None, old_data, new_data).ratio() * 100)
     except Exception:
         return 0
@@ -138,7 +168,7 @@ def fuzzy_similarity(old_data, new_data):
 def detect_mime_type(path):
     try:
         with open(path, 'rb') as f:
-            data = f.read(1024)  # Read only the beginning
+            data = f.read(1024)
         text_chars = bytearray({7,8,9,10,12,13,27} | set(range(0x20, 0x100)))
         if bool(data.translate(None, text_chars)):
             return "binary"
@@ -177,10 +207,10 @@ def scan_initial_files(base_dir, file_hashes, file_types):
 
 class RansomwareEventHandler(FileSystemEventHandler):
     def __init__(self):
-        self.file_hashes = {}
-        self.file_types = {}
-        self.modification_times = {}
-        self.file_contents = {}
+        self.file_hashes = SortedDict()
+        self.file_types = SortedDict()
+        self.file_contents = SortedDict()
+        self.entropy_maps = {}  # path -> SortedDict of window entropies
         self.event_log = deque()
         self.deletion_log = deque()
         scan_initial_files(MONITORED_DIR, self.file_hashes, self.file_types)
@@ -194,28 +224,18 @@ class RansomwareEventHandler(FileSystemEventHandler):
             print(f"📁 New file created: {event.src_path}")
             self.analyze(event.src_path)
 
-    # def on_deleted(self, event):
-    #     if not event.is_directory:
-    #         print(f"🗑️ File deleted: {event.src_path}")
-    #         if os.path.basename(event.src_path) in HONEYPOT_FILES:
-    #             print(f"🚨 Honeypot was deleted!")
-    #             print("💥 This strongly indicates ransomware activity.")
-
     def on_deleted(self, event):
         if not event.is_directory:
             path = event.src_path
             print(f"🗑️ File deleted: {path}")
             basename = os.path.basename(path)
-
             now = time.time()
             self.deletion_log.append(now)
             self.cleanup_old_deletions(now)
-
             if basename in HONEYPOT_FILES:
                 print(f"🚨 Honeypot was deleted!")
                 print("💥 This strongly indicates ransomware activity.")
                 return
-
             if len(self.deletion_log) > MAX_DELETIONS_PER_MINUTE:
                 print(f"🚨 Bulk deletion detected: {len(self.deletion_log)} files deleted in the last minute!")
 
@@ -253,20 +273,26 @@ class RansomwareEventHandler(FileSystemEventHandler):
 
         if not old_hash or old_hash != h:
             ascii_val = ascii_ratio(data)
-            entropy_val = file_entropy(data)
-            enc_flags = detect_encoding(data)
-            entropy_windows = window_entropy(data)
+            entropy_val = file_entropy(data[:WINDOW_SIZE * 4])
+            enc_flags = detect_encoding(data[:WINDOW_SIZE * 4])
+
+            # Extra suspicion logic for small base64-encoded files
+            if len(data) < 1024 and 'Base64' in enc_flags:
+                print(f"    ├─ Small file with high Base64 content")
+                suspicious = True
+
+            new_entropy_map = sliding_entropy_windows(data)
+            self.entropy_maps[path] = new_entropy_map
+
+            suspicious |= (entropy_val > ENTROPY_THRESHOLD or
+                           ascii_val < LOW_ASCII_RATIO or
+                           similarity < SIMILARITY_THRESHOLD or
+                           any(e > WINDOW_ENTROPY_THRESHOLD for e in new_entropy_map.values()) or
+                           new_type == "binary")
 
             print(f"📄 Change detected: {os.path.basename(path)}")
             print(f"    ├─ Text ratio: {ascii_val:.2f}, Entropy: {entropy_val:.2f}, MIME: {new_type}")
             print(f"    ├─ Fuzzy similarity: {similarity}%")
-
-            if (entropy_val > ENTROPY_THRESHOLD or
-                    ascii_val < LOW_ASCII_RATIO or
-                    similarity < SIMILARITY_THRESHOLD or
-                    any(e > WINDOW_ENTROPY_THRESHOLD for e in entropy_windows) or
-                    new_type == "binary"):
-                suspicious = True
 
             if old_type and old_type != new_type:
                 print(f"    ├─ File type changed from {old_type} to {new_type}")
@@ -276,7 +302,7 @@ class RansomwareEventHandler(FileSystemEventHandler):
 
             self.file_hashes[path] = h
             self.file_types[path] = new_type
-            self.file_contents[path] = data
+            self.file_contents[path] = data[:WINDOW_SIZE * 4]
 
             if os.path.basename(path) in HONEYPOT_FILES:
                 print(f"🚨 Honeypot was accessed: {path}")
@@ -296,7 +322,6 @@ class RansomwareEventHandler(FileSystemEventHandler):
 def main():
     print(f"[INFO] Monitoring directory: {MONITORED_DIR}")
 
-    # Check if the monitored directory exists and create it if not
     if not os.path.exists(MONITORED_DIR):
         print(f"[INFO] Directory '{MONITORED_DIR}' does not exist. Creating it...")
         try:

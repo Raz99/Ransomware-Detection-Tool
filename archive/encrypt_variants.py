@@ -3,7 +3,7 @@ import base64
 import random
 from pathlib import Path
 
-TARGET_DIR = Path(__file__).parent / "test_folder"
+TARGET_DIR = Path(__file__).parent / "monitored_dir"
 KEY = b"mysecretkey"
 
 # Encrypt entire file using XOR

@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-TARGET_DIR = Path(__file__).parent / "test_folder"
+TARGET_DIR = Path(__file__).parent / "monitored_dir"
 TARGET_DIR.mkdir(parents=True, exist_ok=True)
 
 FILES = {
