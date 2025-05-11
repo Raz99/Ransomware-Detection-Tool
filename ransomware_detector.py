@@ -1,60 +1,50 @@
 """
-Ransomware Detection Tool - Runtime Complexity Analysis
-=======================================================
+Ransomware Detection Tool
 
-The Runtime is O(log(n) * m):
+# Authors:
+    - Raz Cohen
+    - Aliza Lazar
 
-The runtime complexity of the entire code is O(log(n) * m), and here’s why:
+# Efficiency Analysis:
+Definitions:
+    - n = number of tracked files in the monitored directory
+    - m = size (in bytes) of a single changed file
 
-1. File Monitoring and Event Handling (O(1)):
-   - Real-time file system events are handled efficiently using the Watchdog library.
-   - These operations are quick and have negligible complexity compared to file analysis.
+A. Memory Usage: O(n)
+    - Per file:
+        - SHA-256 hash: O(1)
+        - MIME type string (text/binary): O(1)
+        - Up to 4KB of content for fuzzy comparison: O(1)
+        - Entropy map (one value per 1KB block): O(m / 1024) [Explanation: 1024 bytes = 1KB]
+    - Memory scales linearly with number of files (n)
 
-2. Storing and Accessing Metadata (O(log(n))):
-   - The tool uses a SortedDict for storing file hashes, entropy maps, and file contents.
-   - Each insertion, update, or lookup in a SortedDict takes O(log(n)), making it efficient
-     for maintaining and retrieving file metadata.
+B. Runtime Complexity (per file event): O(m + log(n)) per event
+    - SHA-256 hash (entire file): O(m)
+    - Partial content read (first 4KB): O(1)
+    - ASCII ratio, entropy, encoding detection (on 4KB): O(1)
+    - Fuzzy similarity (first 4KB): O(1)
+    - SortedDict access/update (hashes, types, contents): O(log(n))
+    - Overall per-event runtime: O(m + log(n))
 
-3. File Analysis (O(m)):
-   - Entropy calculation for file chunks: O(m).
-   - ASCII ratio calculation: O(m).
-   - Hash computation: O(m).
-   - Fuzzy similarity comparison: O(n * m) for old and new file data.
-   - These file processing operations are performed whenever a file is created or modified.
+C. I/O Complexity: O(1) per event
+    - File monitoring relies on real-time OS notifications (via Watchdog)
+    - Partial read (~4KB) per changed file
+    - No polling or folder-wide scanning
+    - I/O is constant per file event, regardless of total folder size
 
-Combining Both:
-- For each file change event:
-  - Accessing metadata: O(log(n))
-  - Analyzing the file itself: O(m)
-- Therefore, the combined runtime per file modification event becomes O(log(n) * m).
-
-Final Answer:
-The overall runtime of the code is O(log(n) * m), where:
-- n = Number of monitored files.
-- m = Average size of the modified file.
-
-=======================================================
-
-Source and Inspiration:
-------------------------
-This code was developed based on insights gathered from multiple academic articles and industry reports.
-We did not take ideas from just one source; instead, we combined concepts from various studies to achieve a robust solution.
-Key references and inspirations include:
-- Real-Time File Monitoring (Watchdog): Combining ideas from the Python Watchdog library and SANS ISC Diary.
-  - Watchdog Library: https://www.pythonsnacks.com/p/python-watchdog-file-directory-updates
-- Entropy and File Type Analysis: Research papers on detecting ransomware through entropy and file content examination.
-  - Cryptographic Ransomware Detection: https://www.mdpi.com/1424-8220/24/5/1446
-  - SANS Entropy Analysis: https://isc.sans.edu/diary/21351
-- Fuzzy Hashing Techniques: Inspired by studies on comparing file versions for similarity after ransomware attacks (e.g., CryptoDrop).
-  - CryptoDrop Research: https://www.cise.ufl.edu/~traynor/papers/scaife-icdcs16.pdf
-  - Fuzzy Hashing Techniques: https://hackernoon.com/cryptographic-ransomware-encryption-detection-survey-detection-of-encryption
-- Bulk Modification Patterns: Approaches based on analyzing file changes in bulk to identify suspicious behavior.
-  - FileAudit for Bulk Changes: https://www.isdecisions.com/en/blog/data-security/how-to-detect-ransomware-with-fileaudit
-- Honeypot Files: Using decoy files as traps for ransomware, as described in professional cybersecurity documentation.
-  - Honeypot Files for Ransomware Detection: https://documentation.commvault.com/11.20/ransomware_detection_on_client_computers_01.html
-
-By blending ideas from multiple articles, we created a comprehensive and efficient ransomware detection tool.
-
+# Sources:
+We combined methods from a few research articles listed below:
+    - Watchdog:
+        https://medium.com/h7w/how-to-detect-malware-on-a-windows-system-using-python-a-step-by-step-guide-for-beginners-ebe98c7aa967
+    - Fuzzy similarity:
+        https://pure.port.ac.uk/ws/portalfiles/portal/20272871/1570559640.pdf
+        https://www.cise.ufl.edu/~traynor/papers/scaife-icdcs16.pdf
+    - Honeypot:
+        https://www.researchgate.net/publication/309323786_Detecting_Ransomware_with_Honeypot_Techniques
+    - Entropy & ASCII ratio & encoding detection:
+        https://www.mdpi.com/1424-8220/24/5/1446
+    - High-frequency file modifications (extended it to deletions as-well):
+        https://www.techrxiv.org/doi/full/10.36227/techrxiv.173047864.44215173
 """
 
 import os # for file system operations
@@ -67,7 +57,7 @@ from collections import defaultdict, deque # for data structures
 from sortedcontainers import SortedDict # for sorted dictionary
 from watchdog.observers import Observer # for file system monitoring
 from watchdog.events import FileSystemEventHandler # for event handling
-import difflib # for fuzzy string matching
+import difflib # for fuzzy similarity
 
 MONITORED_DIR = "monitored_dir" # Directory to monitor
 MAX_EVENTS_PER_MINUTE = 10 # Max events to trigger bulk detection
@@ -303,7 +293,7 @@ class RansomwareEventHandler(FileSystemEventHandler):
 
             # Check if too many files were deleted in a short time
             if len(self.deletion_log) > MAX_DELETIONS_PER_MINUTE:
-                print(f"Bulk deletion detected: {len(self.deletion_log)} files deleted in the last minute!")
+                print(f"[ATTENTION] Mass deletions detected: {len(self.deletion_log)} files deleted in the last minute!")
 
     # File renamed
     def on_moved(self, event):
@@ -393,7 +383,7 @@ class RansomwareEventHandler(FileSystemEventHandler):
 
         # If too many changes were detected in a short time
         if len(self.event_log) > MAX_EVENTS_PER_MINUTE:
-            print(f"Bulk change detected: {len(self.event_log)} changes in last minute!")
+            print(f"[ATTENTION] Mass changes detected: {len(self.event_log)} changes in last minute!")
 
     # Cleanup old events and deletions
     def cleanup_old_events(self, now):
