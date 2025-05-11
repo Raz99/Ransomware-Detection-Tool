@@ -4,29 +4,29 @@ Ransomware Detection Tool - Resource Efficiency Analysis
 
 1. Memory Usage (Space Complexity):
 -----------------------------------
-- ✅ O(1) for real-time event monitoring (via Watchdog/inotify): no buffer retention.
-- ✅ O(n) for storing:
+-  O(1) for real-time event monitoring (via Watchdog/inotify): no buffer retention.
+-  O(n) for storing:
     - SHA-256 hashes per file
     - MIME types
     - Partial file content (~few KB for fuzzy comparison)
     - Windowed entropy values using SortedDict (one per 1KB block)
-- ➕ Efficient: metadata + partial statistics only; no full file storage.
+-  Efficient: metadata + partial statistics only; no full file storage.
 
 2. Runtime Efficiency (Time Complexity):
 ----------------------------------------
-- ✅ O(1) per event for filesystem change detection (Watchdog).
-- ✅ O(log(n)) for change analysis, where n is file size:
+-  O(1) per event for filesystem change detection (Watchdog).
+-  O(log(n)) for change analysis, where n is file size:
     - Only small prefix of file (~4KB) is scanned
     - Windowed entropy is precomputed (SortedDict), updated incrementally
     - ASCII ratio and fuzzy similarity run on small window only
     - MIME detection limited to 1KB
-- ➕ Fast detection with logarithmic access to suspicious segments.
+-  Fast detection with logarithmic access to suspicious segments.
 
 3. I/O Complexity (Disk Access):
 -------------------------------
-- ✅ Minimal I/O via real-time file event hooks (no polling).
-- ⚠️ Partial file read (~4KB) for changed files only.
-- ➕ Total disk access scales with *event frequency*, not folder size.
+-  Minimal I/O via real-time file event hooks (no polling).
+-  Partial file read (~4KB) for changed files only.
+-  Total disk access scales with *event frequency*, not folder size.
 
 4. Architecture:
 ----------------
@@ -41,10 +41,10 @@ Ransomware Detection Tool - Resource Efficiency Analysis
 
 Summary:
 --------
-- 🎯 Designed for low-overhead, efficient ransomware detection
-- 🧠 Memory: O(n)
-- ⏱️ Runtime: O(log(n)) per modified file
-- 📀 I/O: event-triggered, minimal (~4KB per change)
+-  Designed for low-overhead, efficient ransomware detection
+-  Memory: O(n)
+- ️ Runtime: O(log(n)) per modified file
+-  I/O: event-triggered, minimal (~4KB per change)
 """
 
 import os
@@ -171,8 +171,8 @@ def create_honeypot_files(base_dir, count):
         path = os.path.join(base_dir, f"__HONEY__{i}.txt")
         try:
             with open(path, 'w') as f:
-                f.write("Project Plan - Confidential\n\nTasks:\n- Finalize budget proposal\n- Schedule design review"
-                        "\n- Contact suppliers\n- Prepare draft presentation\n\nDO NOT DELETE OR MODIFY")
+                f.write("This is a honeypot file\n\nTasks are:\n- Detect ransomware activities"
+                        "\n- Notify the user about suspicious activity \n\nDO NOT DELETE OR MODIFY")
             print(f"[INFO] Honeypot created at: {path} (overwritten if existed)")
             HONEYPOT_FILES.add(os.path.basename(path))
         except Exception as e:
@@ -203,33 +203,33 @@ class RansomwareEventHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         if not event.is_directory:
-            print(f"📁 New file created: {event.src_path}")
+            print(f"New file created: {event.src_path}")
             self.analyze(event.src_path)
 
     def on_deleted(self, event):
         if not event.is_directory:
             path = event.src_path
-            print(f"🗑️ File deleted: {path}")
+            print(f"File deleted: {path}")
             basename = os.path.basename(path)
             now = time.time()
             self.deletion_log.append(now)
             self.cleanup_old_deletions(now)
             if basename in HONEYPOT_FILES:
-                print(f"🚨 Honeypot was deleted!")
-                print("💥 This strongly indicates ransomware activity.")
+                print(f"[ATTENTION] Honeypot was deleted!")
+                print("[RANSOMWARE] This strongly indicates ransomware activity.")
                 return
             if len(self.deletion_log) > MAX_DELETIONS_PER_MINUTE:
-                print(f"🚨 Bulk deletion detected: {len(self.deletion_log)} files deleted in the last minute!")
+                print(f"Bulk deletion detected: {len(self.deletion_log)} files deleted in the last minute!")
 
     def on_moved(self, event):
         if not event.is_directory:
-            print(f"🔀 File renamed: {event.src_path} → {event.dest_path}")
+            print(f"File renamed: {event.src_path} → {event.dest_path}")
             if os.path.basename(event.src_path) in HONEYPOT_FILES:
-                print(f"🚨 Honeypot was renamed!")
-                print("💥 This strongly indicates ransomware activity.")
+                print(f"[ATTENTION] Honeypot was renamed!")
+                print("[RANSOMWARE] This strongly indicates ransomware activity.")
             self.analyze(event.dest_path)
             if any(event.dest_path.endswith(ext) for ext in SUSPICIOUS_EXTENSIONS):
-                print(f"⚠️  Suspicious file rename to: {event.dest_path}")
+                print(f"Suspicious file rename to: {event.dest_path}")
 
     def analyze(self, path):
         now = time.time()
@@ -242,7 +242,7 @@ class RansomwareEventHandler(FileSystemEventHandler):
         ext = os.path.splitext(path)[1].lower()
         suspicious = ext in SUSPICIOUS_EXTENSIONS
         if suspicious:
-            print(f"⚠️  Suspicious file extension: {path}")
+            print(f" ️Suspicious file extension: {path}")
 
         h, data = hash_file(path)
         if h is None or data is None:
@@ -272,7 +272,7 @@ class RansomwareEventHandler(FileSystemEventHandler):
                            any(e > WINDOW_ENTROPY_THRESHOLD for e in new_entropy_map.values()) or
                            new_type == "binary")
 
-            print(f"📄 Change detected: {os.path.basename(path)}")
+            print(f"Change detected: {os.path.basename(path)}")
             print(f"    ├─ Text ratio: {ascii_val:.2f}, Entropy: {entropy_val:.2f}, MIME: {new_type}")
             print(f"    ├─ Fuzzy similarity: {similarity}%")
 
@@ -280,18 +280,18 @@ class RansomwareEventHandler(FileSystemEventHandler):
                 print(f"    ├─ File type changed from {old_type} to {new_type}")
                 suspicious = True
 
-            print("    └─ {}".format("⚠️  Suspicious content detected" if suspicious else "✅ Legitimate modification"))
+            print("    └─ {}".format("️ Suspicious content detected" if suspicious else "✅ Legitimate modification"))
 
             self.file_hashes[path] = h
             self.file_types[path] = new_type
             self.file_contents[path] = data[:WINDOW_SIZE * 4]
 
             if os.path.basename(path) in HONEYPOT_FILES:
-                print(f"🚨 Honeypot was accessed: {path}")
-                print("💥 This strongly indicates ransomware activity.")
+                print(f"[ATTENTION] Honeypot was accessed: {path}")
+                print("[RANSOMWARE] This strongly indicates ransomware activity.")
 
         if len(self.event_log) > MAX_EVENTS_PER_MINUTE:
-            print(f"🚨 Bulk change detected: {len(self.event_log)} changes in last minute!")
+            print(f"Bulk change detected: {len(self.event_log)} changes in last minute!")
 
     def cleanup_old_events(self, now):
         while self.event_log and now - self.event_log[0] > 60:
