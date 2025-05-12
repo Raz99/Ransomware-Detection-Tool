@@ -4,6 +4,18 @@
 ## Overview
 This Python-based tool is designed to detect ransomware activity on text files (`.txt`) in a monitored directory, using a combination of real-time file monitoring, statistical content analysis, fuzzy hashing, and behavioral pattern detection. It aims to identify suspicious modifications such as encryption or mass file changes while minimizing false positives in normal user environments.
 
+## Installation
+```bash
+pip install watchdog sortedcontainers
+```
+
+## Usage
+```bash
+python ransomware_detector.py
+```
+
+You can edit the `MONITORED_DIR` variable in the script to set the desired path.
+
 ## Features
 - Real-time monitoring using `Watchdog` (inotify/FileSystemWatcher) for low-latency detection.
 - Entropy and ASCII ratio analysis to detect statistical anomalies in file content.
@@ -32,35 +44,24 @@ The tool uses a multi-layered detection approach that includes:
   Deploys hidden decoy files that, if accessed or altered, trigger an immediate alert—useful for early-stage ransomware detection.
 
 ## Sources
-We combined methods from a few research articles listed below:
 
-- **Watchdog**  
-  https://medium.com/h7w/how-to-detect-malware-on-a-windows-system-using-python-a-step-by-step-guide-for-beginners-ebe98c7aa967
+We combined detection methods from several academic and technical sources:
 
-- **Fuzzy similarity**  
-  https://pure.port.ac.uk/ws/portalfiles/portal/20272871/1570559640.pdf  
-  https://www.cise.ufl.edu/~traynor/papers/scaife-icdcs16.pdf
+- **Watchdog (File Monitoring):**  
+  ["How to Detect Malware on a Windows System Using Python – A Step-by-Step Guide for Beginners"](https://medium.com/h7w/how-to-detect-malware-on-a-windows-system-using-python-a-step-by-step-guide-for-beginners-ebe98c7aa967) – Medium
 
-- **Honeypot**  
-  https://www.researchgate.net/publication/309323786_Detecting_Ransomware_with_Honeypot_Techniques
+- **Fuzzy Similarity Techniques:**  
+  ["Ransomware Detection Based on Fuzzy Hashing Similarity Matching"](https://pure.port.ac.uk/ws/portalfiles/portal/20272871/1570559640.pdf) – University of Portsmouth  
+  ["CryptoLock (and Drop It): Stopping Ransomware Attacks on User Data"](https://www.cise.ufl.edu/~traynor/papers/scaife-icdcs16.pdf) – Scaife et al., ICDCS 2016
 
-- **Entropy, ASCII ratio, encoding detection**  
-  https://www.mdpi.com/1424-8220/24/5/1446
+- **Honeypot Strategies:**  
+  ["Detecting Ransomware with Honeypot Techniques"](https://www.researchgate.net/publication/309323786_Detecting_Ransomware_with_Honeypot_Techniques) – ResearchGate publication
 
-- **High-frequency file modifications (extended to deletions)**  
-  https://www.techrxiv.org/doi/full/10.36227/techrxiv.173047864.44215173
+- **Entropy, ASCII Ratio, and Encoding Detection:**  
+  ["Entropy Sharing in Ransomware: Bypassing Entropy-Based Detection of Cryptographic Operations"](https://www.mdpi.com/1424-8220/24/5/1446) – MDPI Sensors, 2024
 
-## Installation
-```bash
-pip install watchdog sortedcontainers
-```
-
-## Usage
-```bash
-python ransomware_detector.py
-```
-
-You can edit the `MONITORED_DIR` variable in the script to set the desired path.
+- **High-Frequency File Modification Patterns:**  
+  ["Heuristic-Based Ransomware Detection Using File Activity Rates"](https://www.techrxiv.org/doi/full/10.36227/techrxiv.173047864.44215173) – TechRxiv
 
 ## Authors
 - Raz Cohen
