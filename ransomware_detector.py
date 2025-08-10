@@ -2,7 +2,7 @@
 Ransomware Detection Tool
 
 # Important!
-- Libraries required: watchdog, sortedcontainers - use "pip install watchdog sortedcontainers".
+- Libraries required: watchdog, sortedcontainers
 
 # Authors:
     - Raz Cohen
