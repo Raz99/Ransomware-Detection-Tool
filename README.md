@@ -5,8 +5,11 @@
 This Python-based tool is designed to detect ransomware activity on text files (`.txt`) in a monitored directory, using a combination of real-time file monitoring, statistical content analysis, fuzzy hashing, and behavioral pattern detection. It aims to identify suspicious modifications such as encryption or mass file changes while minimizing false positives in normal user environments.
 
 ## Installation
+It is recommended to use a virtual environment.
+
 ```bash
-pip install watchdog sortedcontainers
+python -m venv .venv && source .venv/bin/activate   # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
 ## Usage
